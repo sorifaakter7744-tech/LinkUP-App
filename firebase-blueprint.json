@@ -1,0 +1,241 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public directory profile for searching users by username and managing friend connections. Contains no GPS coordinates.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user."
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the user."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name chosen by the user."
+        },
+        "username": {
+          "type": "string",
+          "description": "Unique handle for friend search (lowercase alphanumeric and underscores)."
+        },
+        "usernameLower": {
+          "type": "string",
+          "description": "Lowercase normalized username for searching."
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address from Google Authentication."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User profile photo URL from Google Authentication."
+        },
+        "avatarColor": {
+          "type": "string",
+          "description": "Hex color used for user avatar badge and map marker."
+        },
+        "sharingEnabled": {
+          "type": "boolean",
+          "description": "Whether the user currently has live location sharing turned ON."
+        },
+        "friends": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of accepted friend UIDs."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp when the account was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp when the profile was last updated."
+        }
+      },
+      "required": [
+        "uid",
+        "name",
+        "displayName",
+        "username",
+        "usernameLower",
+        "email",
+        "photoURL",
+        "avatarColor",
+        "sharingEnabled",
+        "friends",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserLocation": {
+      "title": "UserLocation",
+      "description": "Private live GPS location document readable ONLY by the owner and accepted friends when sharingEnabled is true.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "UID of the user sharing their location."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name of the user."
+        },
+        "username": {
+          "type": "string",
+          "description": "Username of the user."
+        },
+        "avatarColor": {
+          "type": "string",
+          "description": "Hex color for marker rendering."
+        },
+        "latitude": {
+          "type": "number",
+          "description": "GPS latitude in decimal degrees (-90 to 90)."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "GPS longitude in decimal degrees (-180 to 180)."
+        },
+        "accuracy": {
+          "type": "number",
+          "description": "GPS accuracy radius in meters."
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Epoch milliseconds of the latest GPS location update."
+        },
+        "heading": {
+          "type": "number",
+          "description": "Device heading in degrees if available."
+        },
+        "speed": {
+          "type": "number",
+          "description": "Device speed in meters/second if available."
+        },
+        "sharingEnabled": {
+          "type": "boolean",
+          "description": "Must be true for accepted friends to read location."
+        },
+        "allowedFriendUids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of accepted friend UIDs authorized to read this location."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of the latest GPS fix."
+        },
+        "updatedAtMs": {
+          "type": "number",
+          "description": "Epoch milliseconds of the latest GPS fix."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "username",
+        "avatarColor",
+        "latitude",
+        "longitude",
+        "accuracy",
+        "timestamp",
+        "sharingEnabled",
+        "allowedFriendUids",
+        "updatedAt",
+        "updatedAtMs"
+      ]
+    },
+    "FriendRequest": {
+      "title": "FriendRequest",
+      "description": "Friend request record between two users.",
+      "type": "object",
+      "properties": {
+        "fromUid": {
+          "type": "string",
+          "description": "Sender UID."
+        },
+        "fromName": {
+          "type": "string",
+          "description": "Sender display name."
+        },
+        "fromUsername": {
+          "type": "string",
+          "description": "Sender username."
+        },
+        "fromAvatarColor": {
+          "type": "string",
+          "description": "Sender avatar color."
+        },
+        "toUid": {
+          "type": "string",
+          "description": "Recipient UID."
+        },
+        "toName": {
+          "type": "string",
+          "description": "Recipient display name."
+        },
+        "toUsername": {
+          "type": "string",
+          "description": "Recipient username."
+        },
+        "toAvatarColor": {
+          "type": "string",
+          "description": "Recipient avatar color."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "accepted", "rejected"],
+          "description": "Current status of the friend request."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp when created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp when last updated."
+        }
+      },
+      "required": [
+        "fromUid",
+        "fromName",
+        "fromUsername",
+        "fromAvatarColor",
+        "toUid",
+        "toName",
+        "toUsername",
+        "toAvatarColor",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "User directory profile storing name, email, profile photo, user ID, location sharing status, friends list, and account creation time."
+    },
+    "/locations/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserLocation"
+      },
+      "description": "Strictly private live GPS location document accessible only to the user and their accepted friends."
+    },
+    "/friendRequests/{requestId}": {
+      "schema": {
+        "$ref": "#/entities/FriendRequest"
+      },
+      "description": "Friend requests sent between users."
+    }
+  }
+}

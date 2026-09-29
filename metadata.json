@@ -1,0 +1,6 @@
+{
+  "name": "LinkUp",
+  "description": "Free private friends-only live GPS location sharing Android app with real-time map tracking, friend requests, and strict privacy controls.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

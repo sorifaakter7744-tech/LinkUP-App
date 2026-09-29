@@ -1,0 +1,145 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'username', 'usernameLower',
+          'avatarColor', 'sharingEnabled', 'friends', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == userId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && (!('name' in data) || (data.name is string && data.name.size() <= 100))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 200))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 2000))
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 30
+        && data.usernameLower is string && data.usernameLower.size() >= 2 && data.usernameLower.size() <= 30
+        && data.avatarColor is string && data.avatarColor.size() >= 4 && data.avatarColor.size() <= 20
+        && data.sharingEnabled is bool
+        && data.friends is list && data.friends.size() <= 300
+        && data.createdAt is string && data.createdAt.size() <= 50
+        && data.updatedAt is string && data.updatedAt.size() <= 50;
+    }
+
+    function isValidLocation(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'username', 'avatarColor',
+          'latitude', 'longitude', 'accuracy', 'sharingEnabled',
+          'allowedFriendUids', 'updatedAt', 'updatedAtMs'
+        ])
+        && data.uid == userId
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 30
+        && data.avatarColor is string && data.avatarColor.size() >= 4 && data.avatarColor.size() <= 20
+        && data.latitude is number && data.latitude >= -90 && data.latitude <= 90
+        && data.longitude is number && data.longitude >= -180 && data.longitude <= 180
+        && data.accuracy is number && data.accuracy >= 0
+        && (!('timestamp' in data) || data.timestamp is number)
+        && data.sharingEnabled is bool
+        && data.allowedFriendUids is list && data.allowedFriendUids.size() <= 300
+        && data.updatedAt is string && data.updatedAt.size() <= 50
+        && data.updatedAtMs is number;
+    }
+
+    function isValidFriendRequest(data) {
+      return data.keys().hasAll([
+          'fromUid', 'fromName', 'fromUsername', 'fromAvatarColor',
+          'toUid', 'toName', 'toUsername', 'toAvatarColor',
+          'status', 'createdAt', 'updatedAt'
+        ])
+        && data.fromUid is string && data.fromUid.size() >= 1 && data.fromUid.size() <= 128
+        && data.toUid is string && data.toUid.size() >= 1 && data.toUid.size() <= 128
+        && data.fromUid != data.toUid
+        && data.fromName is string && data.fromName.size() >= 1 && data.fromName.size() <= 100
+        && data.fromUsername is string && data.fromUsername.size() >= 2 && data.fromUsername.size() <= 30
+        && data.fromAvatarColor is string && data.fromAvatarColor.size() <= 20
+        && data.toName is string && data.toName.size() >= 1 && data.toName.size() <= 100
+        && data.toUsername is string && data.toUsername.size() >= 2 && data.toUsername.size() <= 30
+        && data.toAvatarColor is string && data.toAvatarColor.size() <= 20
+        && data.status in ['pending', 'accepted', 'rejected']
+        && data.createdAt is string && data.createdAt.size() <= 50
+        && data.updatedAt is string && data.updatedAt.size() <= 50;
+    }
+
+    // ===============================================================
+    // /_connection_check/{docId} - Health check ping
+    // ===============================================================
+    match /_connection_check/{docId} {
+      allow read: if true;
+    }
+
+    // ===============================================================
+    // /users/{userId} - Public user lookup (No GPS coordinates)
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data, userId);
+      allow update: if isAuthenticated() && isValidUserProfile(request.resource.data, userId) && (
+        // Owner updating their own profile
+        isOwner(userId)
+        ||
+        // Accepted friend or requester updating mutual friends list upon accept/remove
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['friends', 'updatedAt'])
+          && request.resource.data.uid == resource.data.uid
+        )
+      );
+      allow delete: if isOwner(userId);
+    }
+
+    // ===============================================================
+    // /locations/{userId} - Private GPS coordinates (Friends Only!)
+    // ===============================================================
+    match /locations/{userId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId
+        || resource == null
+        || (
+          resource.data.sharingEnabled == true
+          && (
+            request.auth.uid in resource.data.allowedFriendUids
+            || (
+              exists(/databases/$(database)/documents/users/$(userId))
+              && request.auth.uid in get(/databases/$(database)/documents/users/$(userId)).data.friends
+            )
+          )
+        )
+      );
+      allow create: if isOwner(userId) && isValidLocation(request.resource.data, userId);
+      allow update: if isOwner(userId) && isValidLocation(request.resource.data, userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // ===============================================================
+    // /friendRequests/{requestId} - Private between sender & receiver
+    // ===============================================================
+    match /friendRequests/{requestId} {
+      allow read: if isAuthenticated() && (
+        resource == null
+        || resource.data.fromUid == request.auth.uid
+        || resource.data.toUid == request.auth.uid
+      );
+      allow create: if isAuthenticated()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && isValidFriendRequest(request.resource.data);
+      allow update: if isAuthenticated()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid)
+        && request.resource.data.fromUid == resource.data.fromUid
+        && request.resource.data.toUid == resource.data.toUid
+        && isValidFriendRequest(request.resource.data);
+      allow delete: if isAuthenticated()
+        && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+    }
+  }
+}
